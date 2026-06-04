@@ -783,6 +783,30 @@ def receipt_records():
         'sale_date': inv.sale_date.isoformat()
     } for inv in invoices])
 
+# ---------- RESET CREDENTIALS (temporary route) ----------
+@app.route('/reset-credentials')
+def reset_credentials():
+    from werkzeug.security import generate_password_hash
+    # Try to find existing admin user
+    admin = User.query.filter_by(username='admin').first()
+    if admin:
+        admin.username = 'manuel'
+        admin.password_hash = generate_password_hash('manuel')
+        db.session.commit()
+        return "Updated existing admin to manuel/manuel"
+    # Otherwise, create a new user
+    manuel = User.query.filter_by(username='manuel').first()
+    if manuel:
+        manuel.password_hash = generate_password_hash('manuel')
+        db.session.commit()
+        return "Updated manuel password to manuel"
+    else:
+        new_user = User(username='manuel', full_name='Administrator', role='admin')
+        new_user.set_password('manuel')
+        db.session.add(new_user)
+        db.session.commit()
+        return "Created new manuel/manuel"
+
 # ---------------------------
 # Serve Frontend
 # ---------------------------
