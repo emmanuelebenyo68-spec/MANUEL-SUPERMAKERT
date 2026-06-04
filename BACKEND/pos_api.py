@@ -30,7 +30,7 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 # ---------------------------
-# Models (all as before)
+# Models (extended for shift display name and invoice cashier display name)
 # ---------------------------
 class User(db.Model):
     __tablename__ = 'users'
@@ -110,6 +110,8 @@ class Invoice(db.Model):
     payment_method = db.Column(db.String(50))
     cashier_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     sale_date = db.Column(db.DateTime, default=datetime.utcnow)
+    # NEW: store the cashier display name from shift at sale time
+    cashier_display_name = db.Column(db.String(100), nullable=True)
 
     cashier = db.relationship('User', backref='invoices')
     items = db.relationship('InvoiceItem', backref='invoice', cascade='all, delete-orphan')
@@ -126,6 +128,7 @@ class Invoice(db.Model):
             'total': float(self.total),
             'payment_method': self.payment_method,
             'cashier': self.cashier.full_name if self.cashier else None,
+            'cashier_display_name': self.cashier_display_name,
             'sale_date': self.sale_date.isoformat(),
             'items': [item.to_dict() for item in self.items]
         }
@@ -270,6 +273,8 @@ class Shift(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
     total_sales = db.Column(db.Numeric(10,2), default=0)
     status = db.Column(db.String(20), default='active')
+    # NEW: store the cashier's entered name for this shift
+    shift_display_name = db.Column(db.String(100), nullable=True)
 
     user = db.relationship('User')
 
@@ -278,6 +283,7 @@ class Shift(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'cashier_name': self.user.full_name if self.user else None,
+            'shift_display_name': self.shift_display_name,
             'start_time': self.start_time.isoformat(),
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'total_sales': float(self.total_sales),
@@ -357,6 +363,7 @@ def get_users():
     users = User.query.all()
     return jsonify([u.to_dict() for u in users])
 
+# Only admin can delete users
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 @token_required
 @role_required(['admin'])
@@ -374,9 +381,10 @@ def get_products():
     products = Product.query.all()
     return jsonify([p.to_dict() for p in products])
 
+# Only admin can create/update/delete products (removed manager)
 @app.route('/api/products', methods=['POST'])
 @token_required
-@role_required(['admin', 'manager'])
+@role_required(['admin'])
 def create_product():
     data = request.json
     barcode = data.get('barcode') or str(uuid4().int)[:13]
@@ -397,7 +405,7 @@ def create_product():
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])
 @token_required
-@role_required(['admin', 'manager'])
+@role_required(['admin'])
 def update_product(product_id):
     product = Product.query.get_or_404(product_id)
     data = request.json
@@ -431,6 +439,10 @@ def create_invoice():
     seq = int(last_inv.invoice_no.split('-')[-1]) + 1 if last_inv else 1
     invoice_no = f"INV-{today}-{seq:04d}"
 
+    # Get the cashier's active shift to capture display name for receipt
+    active_shift = Shift.query.filter_by(user_id=g.current_user.id, status='active').first()
+    cashier_display = active_shift.shift_display_name if active_shift and active_shift.shift_display_name else g.current_user.full_name
+
     invoice = Invoice(
         invoice_no=invoice_no,
         customer_name=data.get('customer_name'),
@@ -440,7 +452,8 @@ def create_invoice():
         tax=data.get('tax', 0),
         total=data['total'],
         payment_method=data.get('payment_method', 'Cash'),
-        cashier_id=g.current_user.id
+        cashier_id=g.current_user.id,
+        cashier_display_name=cashier_display
     )
     db.session.add(invoice)
     db.session.flush()
@@ -535,7 +548,7 @@ def inventory_report():
         'total_value': float(p.quantity_in_stock * p.selling_price)
     } for p in products])
 
-# ---------- Suppliers ----------
+# ---------- Suppliers (only admin can modify) ----------
 @app.route('/api/suppliers', methods=['GET'])
 @token_required
 def get_suppliers():
@@ -544,7 +557,7 @@ def get_suppliers():
 
 @app.route('/api/suppliers', methods=['POST'])
 @token_required
-@role_required(['admin', 'manager'])
+@role_required(['admin'])
 def create_supplier():
     data = request.json
     supplier = Supplier(
@@ -560,7 +573,7 @@ def create_supplier():
 
 @app.route('/api/suppliers/<int:supplier_id>', methods=['PUT'])
 @token_required
-@role_required(['admin', 'manager'])
+@role_required(['admin'])
 def update_supplier(supplier_id):
     supplier = Supplier.query.get_or_404(supplier_id)
     data = request.json
@@ -618,7 +631,7 @@ def create_return():
     db.session.commit()
     return jsonify(ret.to_dict()), 201
 
-# ---------- Loyalty ----------
+# ---------- Loyalty (only admin delete) ----------
 @app.route('/api/loyalty', methods=['GET'])
 @token_required
 def get_loyalty():
@@ -650,7 +663,7 @@ def delete_loyalty(phone):
     db.session.commit()
     return jsonify({'message': 'Customer removed'}), 200
 
-# ---------- Expenses ----------
+# ---------- Expenses (only admin and manager can add, but only admin delete? Keep as is) ----------
 @app.route('/api/expenses', methods=['GET'])
 @token_required
 def get_expenses():
@@ -673,7 +686,7 @@ def add_expense():
     db.session.commit()
     return jsonify(expense.to_dict()), 201
 
-# ---------- Settings ----------
+# ---------- Settings (only admin) ----------
 @app.route('/api/settings', methods=['GET'])
 @token_required
 @role_required(['admin'])
@@ -695,7 +708,7 @@ def update_setting():
     db.session.commit()
     return jsonify(setting.to_dict())
 
-# ---------- Shifts ----------
+# ---------- Shifts (modified to accept display name on start) ----------
 @app.route('/api/shifts', methods=['GET'])
 @token_required
 def get_shifts():
@@ -708,7 +721,16 @@ def start_shift():
     active = Shift.query.filter_by(user_id=g.current_user.id, status='active').first()
     if active:
         return jsonify({'error': 'You already have an active shift'}), 400
-    shift = Shift(user_id=g.current_user.id, status='active')
+    data = request.json or {}
+    display_name = data.get('display_name', '').strip()
+    # If no display name provided, fallback to user's full name
+    if not display_name:
+        display_name = g.current_user.full_name
+    shift = Shift(
+        user_id=g.current_user.id,
+        status='active',
+        shift_display_name=display_name
+    )
     db.session.add(shift)
     db.session.commit()
     return jsonify(shift.to_dict()), 201
@@ -815,6 +837,26 @@ def serve_frontend():
     return send_from_directory('static', 'index.html')
 
 # ---------------------------
+# Add missing columns for existing tables (schema migration)
+# ---------------------------
+def add_missing_columns():
+    """Add shift_display_name to shifts and cashier_display_name to invoices if not exist."""
+    with app.app_context():
+        inspector = db.inspect(db.engine)
+        # Add column to Shift if missing
+        if 'shifts' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('shifts')]
+            if 'shift_display_name' not in columns:
+                db.session.execute(text('ALTER TABLE shifts ADD COLUMN shift_display_name VARCHAR(100)'))
+                db.session.commit()
+        # Add column to Invoice if missing
+        if 'invoices' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('invoices')]
+            if 'cashier_display_name' not in columns:
+                db.session.execute(text('ALTER TABLE invoices ADD COLUMN cashier_display_name VARCHAR(100)'))
+                db.session.commit()
+
+# ---------------------------
 # Seed sample data
 # ---------------------------
 def seed_data():
@@ -873,6 +915,7 @@ def seed_data():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        add_missing_columns()  # ensure new columns exist
         seed_data()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=os.environ.get('FLASK_ENV') == 'development')
