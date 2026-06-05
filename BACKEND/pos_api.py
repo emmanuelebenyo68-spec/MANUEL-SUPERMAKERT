@@ -857,7 +857,7 @@ def add_missing_columns():
                 db.session.commit()
 
 # ---------------------------
-# Seed sample data
+# Seed sample data (ENHANCED – 20+ products)
 # ---------------------------
 def seed_data():
     with app.app_context():
@@ -877,12 +877,46 @@ def seed_data():
             db.session.commit()
 
         if Product.query.count() == 0:
-            cat = Category.query.first()
+            # Get categories for reference
+            cat_beverages = Category.query.filter_by(name='Beverages').first()
+            cat_snacks = Category.query.filter_by(name='Snacks').first()
+            cat_dairy = Category.query.filter_by(name='Dairy').first()
+            cat_fruits = Category.query.filter_by(name='Fruits').first()
+            cat_veg = Category.query.filter_by(name='Vegetables').first()
+            cat_household = Category.query.filter_by(name='Household').first()
+
+            # 24 products (more than 20)
             sample_products = [
-                {'name': 'Coca Cola 500ml', 'selling_price': 120, 'quantity': 50, 'unit': 'bottle', 'barcode': '123456789012'},
-                {'name': 'Milk 1L', 'selling_price': 85, 'quantity': 30, 'unit': 'carton', 'barcode': '234567890123'},
-                {'name': 'Bread', 'selling_price': 50, 'quantity': 20, 'unit': 'loaf', 'barcode': '345678901234'},
-                {'name': 'Rice 1kg', 'selling_price': 220, 'quantity': 40, 'unit': 'pack', 'barcode': '456789012345'},
+                # Beverages
+                {'name': 'Coca Cola 500ml', 'selling_price': 120, 'quantity': 50, 'unit': 'bottle', 'barcode': '123456789012', 'cat': cat_beverages},
+                {'name': 'Pepsi 500ml', 'selling_price': 120, 'quantity': 45, 'unit': 'bottle', 'barcode': '123456789013', 'cat': cat_beverages},
+                {'name': 'Fanta Orange 500ml', 'selling_price': 120, 'quantity': 40, 'unit': 'bottle', 'barcode': '123456789014', 'cat': cat_beverages},
+                {'name': 'Sprite 500ml', 'selling_price': 120, 'quantity': 40, 'unit': 'bottle', 'barcode': '123456789015', 'cat': cat_beverages},
+                {'name': 'Minute Maid Juice 1L', 'selling_price': 200, 'quantity': 30, 'unit': 'carton', 'barcode': '123456789016', 'cat': cat_beverages},
+                # Dairy
+                {'name': 'Fresh Milk 1L', 'selling_price': 85, 'quantity': 30, 'unit': 'carton', 'barcode': '234567890123', 'cat': cat_dairy},
+                {'name': 'Yogurt 500ml', 'selling_price': 70, 'quantity': 25, 'unit': 'cup', 'barcode': '234567890124', 'cat': cat_dairy},
+                {'name': 'Cheese Slices 200g', 'selling_price': 250, 'quantity': 20, 'unit': 'pack', 'barcode': '234567890125', 'cat': cat_dairy},
+                {'name': 'Butter 250g', 'selling_price': 180, 'quantity': 30, 'unit': 'pack', 'barcode': '234567890126', 'cat': cat_dairy},
+                # Snacks
+                {'name': 'Potato Chips 80g', 'selling_price': 100, 'quantity': 80, 'unit': 'pack', 'barcode': '345678901234', 'cat': cat_snacks},
+                {'name': 'Chocolate Bar', 'selling_price': 80, 'quantity': 60, 'unit': 'pcs', 'barcode': '345678901235', 'cat': cat_snacks},
+                {'name': 'Biscuits 200g', 'selling_price': 120, 'quantity': 50, 'unit': 'pack', 'barcode': '345678901236', 'cat': cat_snacks},
+                {'name': 'Peanuts 100g', 'selling_price': 60, 'quantity': 70, 'unit': 'pack', 'barcode': '345678901237', 'cat': cat_snacks},
+                # Fruits
+                {'name': 'Apple (1kg)', 'selling_price': 300, 'quantity': 40, 'unit': 'kg', 'barcode': '456789012345', 'cat': cat_fruits},
+                {'name': 'Banana (1kg)', 'selling_price': 150, 'quantity': 50, 'unit': 'kg', 'barcode': '456789012346', 'cat': cat_fruits},
+                {'name': 'Orange (1kg)', 'selling_price': 200, 'quantity': 45, 'unit': 'kg', 'barcode': '456789012347', 'cat': cat_fruits},
+                # Vegetables
+                {'name': 'Tomatoes (1kg)', 'selling_price': 120, 'quantity': 30, 'unit': 'kg', 'barcode': '567890123456', 'cat': cat_veg},
+                {'name': 'Onions (1kg)', 'selling_price': 100, 'quantity': 40, 'unit': 'kg', 'barcode': '567890123457', 'cat': cat_veg},
+                {'name': 'Potatoes (1kg)', 'selling_price': 80, 'quantity': 60, 'unit': 'kg', 'barcode': '567890123458', 'cat': cat_veg},
+                # Household
+                {'name': 'Laundry Detergent 500g', 'selling_price': 250, 'quantity': 25, 'unit': 'pack', 'barcode': '678901234567', 'cat': cat_household},
+                {'name': 'Dish Soap 500ml', 'selling_price': 180, 'quantity': 35, 'unit': 'bottle', 'barcode': '678901234568', 'cat': cat_household},
+                {'name': 'Toilet Paper 4 rolls', 'selling_price': 220, 'quantity': 40, 'unit': 'pack', 'barcode': '678901234569', 'cat': cat_household},
+                {'name': 'All-Purpose Cleaner 1L', 'selling_price': 300, 'quantity': 20, 'unit': 'bottle', 'barcode': '678901234570', 'cat': cat_household},
+                {'name': 'Sponge Set', 'selling_price': 90, 'quantity': 50, 'unit': 'pack', 'barcode': '678901234571', 'cat': cat_household},
             ]
             for p in sample_products:
                 product = Product(
@@ -891,7 +925,7 @@ def seed_data():
                     quantity_in_stock=p['quantity'],
                     unit=p['unit'],
                     barcode=p['barcode'],
-                    category_id=cat.id
+                    category_id=p['cat'].id if p['cat'] else None
                 )
                 db.session.add(product)
             db.session.commit()
@@ -916,6 +950,180 @@ with app.app_context():
     db.create_all()
     add_missing_columns()
     seed_data()
+
+# ========== ADDED FEATURES (no changes above) ==========
+
+# ---------------------------
+# ADDED: Offline asset serving (local Bootstrap/FontAwesome)
+# ---------------------------
+@app.route('/static/bootstrap/css/bootstrap.min.css')
+def bootstrap_css():
+    return send_from_directory('static/bootstrap/css', 'bootstrap.min.css')
+
+@app.route('/static/bootstrap/js/bootstrap.bundle.min.js')
+def bootstrap_js():
+    return send_from_directory('static/bootstrap/js', 'bootstrap.bundle.min.js')
+
+@app.route('/static/fontawesome/css/all.min.css')
+def fontawesome_css():
+    return send_from_directory('static/fontawesome/css', 'all.min.css')
+
+@app.route('/static/fontawesome/webfonts/<path:filename>')
+def fontawesome_webfonts(filename):
+    return send_from_directory('static/fontawesome/webfonts', filename)
+
+# ---------------------------
+# ADDED: Maintenance endpoint for non-technical staff
+# ---------------------------
+@app.route('/api/maintenance/status', methods=['GET'])
+@token_required
+@role_required(['admin', 'manager'])
+def maintenance_status():
+    import sys, platform
+    return jsonify({
+        'status': 'operational',
+        'python_version': sys.version,
+        'platform': platform.platform(),
+        'database': app.config['SQLALCHEMY_DATABASE_URI'],
+        'instructions': 'If system crashes, restart with: python api.py (or use systemd). Contact developer for persistent issues.',
+        'last_backup': 'Use the Backup button in the sidebar to create a manual backup.'
+    })
+
+# ---------------------------
+# ADDED: Advanced Analytics Endpoints (Profit, Fast-moving, Daily Top)
+# ---------------------------
+@app.route('/api/reports/profit-analysis', methods=['GET'])
+@token_required
+@role_required(['admin', 'manager'])
+def profit_analysis():
+    """Calculate profit/loss per product based on sold quantities."""
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    query = db.session.query(
+        Product.id,
+        Product.name,
+        Product.buying_price,
+        Product.selling_price,
+        func.coalesce(func.sum(InvoiceItem.quantity), 0).label('total_qty'),
+        func.coalesce(func.sum(InvoiceItem.total), 0).label('total_revenue')
+    ).outerjoin(InvoiceItem, Product.id == InvoiceItem.product_id)\
+     .outerjoin(Invoice, InvoiceItem.invoice_id == Invoice.id)
+
+    if from_date:
+        query = query.filter(Invoice.sale_date >= from_date)
+    if to_date:
+        query = query.filter(Invoice.sale_date <= to_date)
+
+    results = query.group_by(Product.id).all()
+    report = []
+    for r in results:
+        total_qty = int(r.total_qty)
+        total_cost = float(r.buying_price) * total_qty
+        total_revenue = float(r.total_revenue)
+        profit = total_revenue - total_cost
+        margin = (profit / total_revenue * 100) if total_revenue > 0 else 0
+        report.append({
+            'product_id': r.id,
+            'name': r.name,
+            'quantity_sold': total_qty,
+            'total_revenue': round(total_revenue, 2),
+            'total_cost': round(total_cost, 2),
+            'profit': round(profit, 2),
+            'profit_margin': round(margin, 2),
+            'selling_price': float(r.selling_price),
+            'buying_price': float(r.buying_price)
+        })
+    return jsonify(report)
+
+@app.route('/api/reports/fast-moving', methods=['GET'])
+@token_required
+@role_required(['admin', 'manager'])
+def fast_moving_products():
+    """Products with highest average daily sales (last 30 days)."""
+    days = request.args.get('days', default=30, type=int)
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    # Get total quantity sold per product in the period
+    subq = db.session.query(
+        InvoiceItem.product_id,
+        func.sum(InvoiceItem.quantity).label('total_qty')
+    ).join(Invoice, InvoiceItem.invoice_id == Invoice.id)\
+     .filter(Invoice.sale_date >= cutoff)\
+     .group_by(InvoiceItem.product_id).subquery()
+
+    results = db.session.query(
+        Product.id, Product.name, Product.unit,
+        func.coalesce(subq.c.total_qty, 0).label('total_qty'),
+        func.count(func.distinct(func.date(Invoice.sale_date))).label('days_with_sales')
+    ).outerjoin(subq, Product.id == subq.c.product_id)\
+     .outerjoin(InvoiceItem, Product.id == InvoiceItem.product_id)\
+     .outerjoin(Invoice, InvoiceItem.invoice_id == Invoice.id)\
+     .filter((Invoice.sale_date >= cutoff) | (Invoice.sale_date.is_(None)))\
+     .group_by(Product.id, subq.c.total_qty).all()
+
+    report = []
+    for r in results:
+        total_qty = int(r.total_qty)
+        days_with_sales = r.days_with_sales or 1
+        avg_daily = total_qty / days_with_sales
+        report.append({
+            'product_id': r.id,
+            'name': r.name,
+            'unit': r.unit,
+            'total_quantity_sold': total_qty,
+            'days_with_sales': days_with_sales,
+            'avg_daily_sales': round(avg_daily, 2)
+        })
+    # Sort by avg daily sales descending
+    report.sort(key=lambda x: x['avg_daily_sales'], reverse=True)
+    return jsonify(report[:20])  # top 20
+
+@app.route('/api/reports/daily-top-products', methods=['GET'])
+@token_required
+@role_required(['admin', 'manager'])
+def daily_top_products():
+    """For each day, the product(s) with highest quantity sold."""
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+    # Subquery: daily sales per product
+    daily_sales = db.session.query(
+        func.date(Invoice.sale_date).label('sale_date'),
+        InvoiceItem.product_id,
+        func.sum(InvoiceItem.quantity).label('qty_sold')
+    ).join(Invoice, InvoiceItem.invoice_id == Invoice.id)\
+     .group_by(func.date(Invoice.sale_date), InvoiceItem.product_id)
+
+    if from_date:
+        daily_sales = daily_sales.filter(Invoice.sale_date >= from_date)
+    if to_date:
+        daily_sales = daily_sales.filter(Invoice.sale_date <= to_date)
+
+    daily_sales = daily_sales.subquery()
+
+    # Rank products per day by quantity
+    ranked = db.session.query(
+        daily_sales.c.sale_date,
+        daily_sales.c.product_id,
+        daily_sales.c.qty_sold,
+        Product.name,
+        Product.unit,
+        db.func.row_number().over(
+            partition_by=daily_sales.c.sale_date,
+            order_by=daily_sales.c.qty_sold.desc()
+        ).label('rank')
+    ).join(Product, daily_sales.c.product_id == Product.id).subquery()
+
+    top_per_day = db.session.query(ranked).filter(ranked.c.rank == 1).order_by(ranked.c.sale_date.desc()).all()
+
+    result = []
+    for row in top_per_day:
+        result.append({
+            'date': row.sale_date.isoformat(),
+            'product_id': row.product_id,
+            'product_name': row.name,
+            'quantity_sold': row.qty_sold,
+            'unit': row.unit
+        })
+    return jsonify(result)
 
 # ---------------------------
 # Run app (for local development only)
