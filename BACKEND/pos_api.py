@@ -381,10 +381,10 @@ def get_products():
     products = Product.query.all()
     return jsonify([p.to_dict() for p in products])
 
-# Only admin can create/update/delete products (removed manager)
+# ==================== MODIFIED: Allow admin AND manager to manage products ====================
 @app.route('/api/products', methods=['POST'])
 @token_required
-@role_required(['admin'])
+@role_required(['admin', 'manager'])
 def create_product():
     data = request.json
     barcode = data.get('barcode') or str(uuid4().int)[:13]
@@ -405,7 +405,7 @@ def create_product():
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])
 @token_required
-@role_required(['admin'])
+@role_required(['admin', 'manager'])
 def update_product(product_id):
     product = Product.query.get_or_404(product_id)
     data = request.json
@@ -423,7 +423,7 @@ def update_product(product_id):
 
 @app.route('/api/products/<int:product_id>', methods=['DELETE'])
 @token_required
-@role_required(['admin'])
+@role_required(['admin', 'manager'])
 def delete_product(product_id):
     product = Product.query.get_or_404(product_id)
     db.session.delete(product)
@@ -1124,6 +1124,89 @@ def daily_top_products():
             'unit': row.unit
         })
     return jsonify(result)
+
+# ---------------------------
+# OFFLINE SYNC ENDPOINTS (new)
+# ---------------------------
+@app.route('/api/offline/data', methods=['GET'])
+@token_required
+def get_offline_data():
+    """Export all essential data for offline caching."""
+    products = Product.query.all()
+    categories = Category.query.all()
+    users = User.query.with_entities(User.id, User.username, User.full_name, User.role).all()
+    settings = Setting.query.all()
+    return jsonify({
+        'products': [p.to_dict() for p in products],
+        'categories': [c.to_dict() for c in categories],
+        'users': [{'id': u.id, 'username': u.username, 'full_name': u.full_name, 'role': u.role} for u in users],
+        'settings': [s.to_dict() for s in settings],
+        'last_updated': datetime.utcnow().isoformat()
+    })
+
+@app.route('/api/sync/sales', methods=['POST'])
+@token_required
+def sync_sales():
+    """Process a batch of offline sales transactions."""
+    data = request.json
+    offline_transactions = data.get('transactions', [])
+    results = []
+    for tx in offline_transactions:
+        try:
+            sale_data = tx.get('sale_data')
+            if not sale_data:
+                results.append({'id': tx.get('id'), 'status': 'error', 'message': 'Missing sale_data'})
+                continue
+            today = datetime.utcnow().strftime('%Y%m%d')
+            last_inv = Invoice.query.filter(Invoice.invoice_no.like(f'INV-{today}-%')).order_by(Invoice.id.desc()).first()
+            seq = int(last_inv.invoice_no.split('-')[-1]) + 1 if last_inv else 1
+            invoice_no = f"INV-{today}-{seq:04d}"
+            active_shift = Shift.query.filter_by(user_id=g.current_user.id, status='active').first()
+            cashier_display = active_shift.shift_display_name if active_shift and active_shift.shift_display_name else g.current_user.full_name
+            invoice = Invoice(
+                invoice_no=invoice_no,
+                customer_name=sale_data.get('customer_name'),
+                customer_phone=sale_data.get('customer_phone'),
+                subtotal=sale_data['subtotal'],
+                discount=sale_data.get('discount', 0),
+                tax=sale_data.get('tax', 0),
+                total=sale_data['total'],
+                payment_method=sale_data.get('payment_method', 'Cash'),
+                cashier_id=g.current_user.id,
+                cashier_display_name=cashier_display
+            )
+            db.session.add(invoice)
+            db.session.flush()
+            for item_data in sale_data['items']:
+                product = Product.query.get(item_data['product_id'])
+                if not product:
+                    raise ValueError(f"Product {item_data['product_id']} not found")
+                if product.quantity_in_stock < item_data['quantity']:
+                    raise ValueError(f"Insufficient stock for {product.name}")
+                product.quantity_in_stock -= item_data['quantity']
+                movement = StockMovement(
+                    product_id=product.id,
+                    movement_type='sale',
+                    quantity=item_data['quantity'],
+                    reason=f"Invoice {invoice_no}",
+                    user_id=g.current_user.id
+                )
+                db.session.add(movement)
+                item = InvoiceItem(
+                    invoice_id=invoice.id,
+                    product_id=product.id,
+                    product_name=product.name,
+                    quantity=item_data['quantity'],
+                    unit_price=item_data['unit_price'],
+                    total=item_data['total']
+                )
+                db.session.add(item)
+            db.session.commit()
+            results.append({'id': tx.get('id'), 'status': 'success', 'invoice': invoice.to_dict()})
+        except Exception as e:
+            db.session.rollback()
+            results.append({'id': tx.get('id'), 'status': 'error', 'message': str(e)})
+    return jsonify({'results': results})
 
 # ---------------------------
 # Run app (for local development only)
