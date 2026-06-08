@@ -71,11 +71,9 @@
             display: flex;
             gap: 8px;
         }
-        /* Allow manager to see user management buttons */
         .manager-only {
             display: inline-block;
         }
-        /* Report tabs styling */
         .report-tabs {
             margin-bottom: 20px;
             border-bottom: 1px solid #dee2e6;
@@ -104,12 +102,10 @@
         }
         .profit-positive { color: green; font-weight: bold; }
         .profit-negative { color: red; font-weight: bold; }
-        /* Product search input styling */
         .product-search-container {
             margin-bottom: 15px;
         }
-
-        /* ========== NEW: COLORFUL TABLE HEADERS ========== */
+        /* ========== ORIGINAL COLORFUL TABLE HEADERS (RESTORED) ========== */
         .table thead tr th:nth-child(1) { background-color: #3498db; color: white; }
         .table thead tr th:nth-child(2) { background-color: #2ecc71; color: white; }
         .table thead tr th:nth-child(3) { background-color: #e67e22; color: white; }
@@ -120,9 +116,12 @@
         .table thead tr th:nth-child(8) { background-color: #34495e; color: white; }
         .table thead tr th:nth-child(9) { background-color: #16a085; color: white; }
         .table thead tr th:nth-child(10) { background-color: #27ae60; color: white; }
-        /* For tables with fewer columns, colors still apply progressively */
-
-        /* Styled barcode scanner panel */
+        /* Override for receipt modal – keep it white & clean */
+        #receiptModal .table thead tr th {
+            background-color: white !important;
+            color: #212529 !important;
+            border-bottom: 2px solid #dee2e6;
+        }
         .scanner-panel {
             background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
             border: 1px solid #d1d9e6;
@@ -140,8 +139,6 @@
             border: 1px solid #ced4da;
             border-radius: 8px;
         }
-
-        /* Modal header gradient (already present) */
         .modal-header.bg-gradient {
             background: linear-gradient(135deg, #1abc9c, #2c3e50);
             color: white;
@@ -184,6 +181,43 @@
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
+        /* Payment method button group */
+        .payment-btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .payment-btn {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            font-weight: 500;
+        }
+        .payment-btn:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        .payment-btn.active {
+            background: #1abc9c;
+            color: white;
+            border-color: #1abc9c;
+        }
+        .payment-btn i {
+            margin-right: 6px;
+        }
+        /* Helper hint */
+        .payment-hint {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 5px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -191,7 +225,7 @@
     <div class="row">
         <!-- Sidebar -->
         <div class="col-md-2 sidebar p-0">
-            <h4 class="text-center py-3">MANUEL SUPERMARKET</h4>
+            <h4 class="text-center py-3"><i class="fas fa-shopping-cart"></i> MANUEL SUPERMARKET</h4>
             <nav class="nav flex-column">
                 <a href="#" onclick="showSection('dashboard')"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
                 <a href="#" onclick="showSection('products')"><i class="fas fa-boxes"></i> Products</a>
@@ -204,6 +238,7 @@
                 <a href="#" onclick="showSection('returns')"><i class="fas fa-undo-alt"></i> Returns</a>
                 <a href="#" onclick="showSection('loyalty')"><i class="fas fa-gem"></i> Loyalty</a>
                 <a href="#" onclick="showSection('expenses')"><i class="fas fa-receipt"></i> Expenses</a>
+                <a href="#" onclick="showSection('audit_logs')"><i class="fas fa-history"></i> Audit Logs</a>
                 <a href="#" onclick="showSection('settings')"><i class="fas fa-cog"></i> Settings</a>
                 <a href="#" onclick="showSection('stock_alerts')"><i class="fas fa-exclamation-triangle"></i> Stock Alerts</a>
                 <a href="#" onclick="showSection('shift_report')"><i class="fas fa-clock"></i> Shift Report</a>
@@ -230,7 +265,7 @@
                 <div id="products-list" class="table-container"></div>
             </div>
 
-            <!-- SALES SECTION with styled scanner panel -->
+            <!-- SALES SECTION with payment button group -->
             <div id="sales-section" style="display:none;">
                 <h2>Point of Sale</h2>
                 <div id="shift-warning-area"></div>
@@ -249,7 +284,17 @@
                         </div>
                         <div id="product-grid" class="product-vertical-list"></div>
                     </div>
-                    <div class="col-md-5"><div class="card p-3"><h5>Shopping Cart</h5><div id="cart-items" style="max-height: 400px; overflow-y: auto;"></div><hr><div>Subtotal: KES <span id="cart-subtotal">0.00</span></div><div>Discount (KES): <input type="number" id="discount" value="0" class="form-control form-control-sm" onchange="updateCartTotal()"></div><div>Tax (16%): KES <span id="cart-tax">0.00</span></div><div><strong>Total: KES <span id="cart-total">0.00</span></strong></div><div class="mt-3"><label>Customer Name</label><input type="text" id="customer-name" class="form-control"><label>Customer Phone</label><input type="text" id="customer-phone" class="form-control"><label>Payment Method</label><select id="payment-method" class="form-select"><option>Cash</option><option>Card</option><option>MPESA</option></select></div><button class="btn btn-success w-100 mt-3" onclick="completeSale()">Complete Sale</button></div></div>
+                    <div class="col-md-5"><div class="card p-3"><h5>Shopping Cart</h5><div id="cart-items" style="max-height: 400px; overflow-y: auto;"></div><hr><div>Subtotal: KES <span id="cart-subtotal">0.00</span></div><div>Discount (KES): <input type="number" id="discount" value="0" class="form-control form-control-sm" onchange="updateCartTotal()"></div><div>Tax (16%): KES <span id="cart-tax">0.00</span></div><div><strong>Total: KES <span id="cart-total">0.00</span></strong></div><div class="mt-3"><label>Customer Name</label><input type="text" id="customer-name" class="form-control"><label>Customer Phone</label><input type="text" id="customer-phone" class="form-control"><label>Payment Method</label>
+                        <!-- Payment button group instead of dropdown -->
+                        <div class="payment-btn-group" id="payment-btn-group">
+                            <div class="payment-btn" data-method="Cash" onclick="selectPaymentMethod('Cash')">💵 Cash</div>
+                            <div class="payment-btn" data-method="Card" onclick="selectPaymentMethod('Card')">💳 Card</div>
+                            <div class="payment-btn" data-method="MPESA" onclick="selectPaymentMethod('MPESA')">📱 M-PESA</div>
+                            <div class="payment-btn" data-method="Pesa Pal" onclick="selectPaymentMethod('Pesa Pal')">🤝 Pesa Pal</div>
+                        </div>
+                        <div class="payment-hint" id="payment-hint"></div>
+                        <input type="hidden" id="payment-method" value="Cash">
+                        </div><button class="btn btn-success w-100 mt-3" onclick="completeSale()">Complete Sale</button></div></div>
                 </div>
             </div>
 
@@ -301,6 +346,16 @@
             <div id="returns-section" style="display:none;"><h2>Returns</h2><button class="btn btn-primary mb-3 admin-only" onclick="showReturnForm()">+ Process Return</button><div id="returns-list" class="table-container"></div></div>
             <div id="loyalty-section" style="display:none;"><h2>Loyalty Program</h2><button class="btn btn-primary mb-3 admin-only" onclick="showAddLoyaltyForm()">+ Add Customer</button><div id="loyalty-list" class="table-container"></div></div>
             <div id="expenses-section" style="display:none;"><h2>Expenses</h2><button class="btn btn-primary mb-3 manager-only" onclick="showAddExpenseForm()">+ Add Expense</button><div id="expenses-list" class="table-container"></div></div>
+
+            <!-- AUDIT LOGS SECTION -->
+            <div id="audit_logs-section" style="display:none;">
+                <h2>POS Audit Logs</h2>
+                <div class="mb-3">
+                    <input type="text" id="audit-filter" class="form-control" placeholder="Filter by action, user, or details..." onkeyup="filterAuditLogs()">
+                </div>
+                <div id="audit-logs-list" class="table-container">Loading...</div>
+            </div>
+
             <div id="settings-section" style="display:none;"><h2>System Settings</h2><div id="settings-list" class="table-container"></div></div>
             <div id="stock_alerts-section" style="display:none;"><h2>Low Stock Alerts</h2><div id="alerts-list" class="table-container"></div></div>
             <div id="shift_report-section" style="display:none;"><h2>Shift Reports</h2><button class="btn btn-success mb-3" onclick="startShiftWithName()">Start Shift</button><button class="btn btn-danger mb-3" onclick="endShift()">End Shift</button><div id="shift-list" class="table-container"></div></div>
@@ -394,7 +449,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // ORIGINAL JAVASCRIPT (unchanged) – all functions exactly as before
+    // ORIGINAL JAVASCRIPT (unchanged – prompts for MPESA/Pesa Pal still work)
     let authToken = localStorage.getItem('pos_token');
     let cart = [];
     let allProducts = [];
@@ -412,6 +467,8 @@
         }
         receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
         document.addEventListener('shown.bs.tab', function() { focusBarcodeInput(); });
+        // Initialize payment method selection (Cash default)
+        selectPaymentMethod('Cash');
     };
 
     function showToast(message, type = 'success') {
@@ -716,7 +773,7 @@
                         <td><button class="btn btn-sm btn-danger" onclick="removeFromCart(${idx})">X</button></td>
                     </tr>`;
         });
-        html+=`</tbody></table>`;
+        html+=`</tbody><tr>`;
         document.getElementById('cart-items').innerHTML = html || '<p>Cart empty</p>';
         document.getElementById('cart-subtotal').innerText = subtotal.toFixed(2);
         updateCartTotal();
@@ -731,7 +788,29 @@
         document.getElementById('cart-total').innerText=total.toFixed(2);
     }
 
-    async function completeSale(){
+    // Payment method selection (buttons)
+    function selectPaymentMethod(method) {
+        document.getElementById('payment-method').value = method;
+        // Update active button styling
+        document.querySelectorAll('.payment-btn').forEach(btn => {
+            if(btn.getAttribute('data-method') === method) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        // Show hint for M-PESA / Pesa Pal
+        const hintDiv = document.getElementById('payment-hint');
+        if (method === 'MPESA') {
+            hintDiv.innerHTML = '📱 After clicking "Complete Sale", enter the M-Pesa transaction code.';
+        } else if (method === 'Pesa Pal') {
+            hintDiv.innerHTML = '🤝 After clicking "Complete Sale", enter the Pesa Pal reference.';
+        } else {
+            hintDiv.innerHTML = '';
+        }
+    }
+
+    async function completeSale() {
         if(!activeShift) {
             alert('You cannot complete a sale without an active shift. Please start a shift first.');
             showSection('shift_report');
@@ -739,10 +818,14 @@
         }
         if(cart.length===0) return alert('Cart empty');
         const paymentMethod = document.getElementById('payment-method').value;
-        let mpesaCode = null;
-        if(paymentMethod === 'MPESA') {
-            mpesaCode = prompt('Enter M-Pesa transaction code (STK Push confirmation):');
-            if(!mpesaCode) return alert('Transaction code required for M-Pesa payment');
+        let transactionCode = null;
+        // PROMPTS WORK EXACTLY AS BEFORE
+        if (paymentMethod === 'MPESA') {
+            transactionCode = prompt('Enter M-Pesa transaction code (STK Push confirmation):');
+            if (!transactionCode) return alert('Transaction code required for M-Pesa payment');
+        } else if (paymentMethod === 'Pesa Pal') {
+            transactionCode = prompt('Enter Pesa Pal transaction reference:');
+            if (!transactionCode) return alert('Reference code required for Pesa Pal payment');
         }
         const subtotal=parseFloat(document.getElementById('cart-subtotal').innerText), discount=parseFloat(document.getElementById('discount').value)||0;
         const taxable=subtotal-discount, tax=taxable*0.16, total=taxable+tax;
@@ -755,33 +838,36 @@
         };
         try {
             const res = await apiCall('/api/invoices',{method:'POST',body:JSON.stringify(saleData)});
-            showReceipt(res, mpesaCode);
+            showReceipt(res, transactionCode);
             cart=[]; updateCartUI(); loadDashboard();
             document.getElementById('customer-name').value = '';
             document.getElementById('customer-phone').value = '';
             document.getElementById('discount').value = 0;
-            document.getElementById('payment-method').value = 'Cash';
+            selectPaymentMethod('Cash'); // reset to Cash
             updateCartTotal();
             await checkActiveShift();
             updateShiftWarning();
         } catch(e) { alert('Sale failed: '+e.message); }
     }
 
-    function showReceipt(invoice, mpesaCode) {
+    function showReceipt(invoice, transactionCode = null) {
         const date = new Date(invoice.sale_date).toLocaleString();
         let itemsHtml = '';
         invoice.items.forEach(item => {
             itemsHtml += `<tr><td>${escapeHtml(item.product_name)}</td><td>${item.quantity}</td><td>KES ${item.unit_price.toFixed(2)}</td><td>KES ${item.total.toFixed(2)}</td></tr>`;
         });
         const cashierName = invoice.cashier_display_name || invoice.cashier || 'Cashier';
+        let paymentLine = `<div>Payment: ${invoice.payment_method}`;
+        if (transactionCode) paymentLine += ` (Code: ${transactionCode})`;
+        paymentLine += `</div>`;
         const receiptHtml = `
             <div class="store-header">
-                <div class="store-name">🏪 MANUEL SUPERMARKET</div>
+                <div class="store-name">🛒 MANUEL SUPERMARKET</div>
                 <div class="store-tagline">Quality & Service Since 2024</div>
                 <div>Nairobi, Kenya | Tel: 0712345678</div>
                 <div>${date} | Invoice: ${invoice.invoice_no}</div>
             </div>
-            <table>
+            <table class="table table-sm">
                 <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
                 <tbody>${itemsHtml}</tbody>
             </table>
@@ -790,7 +876,7 @@
             <div>Discount: KES ${invoice.discount.toFixed(2)}</div>
             <div>Tax (16%): KES ${invoice.tax.toFixed(2)}</div>
             <div class="total-row"><strong>Total: KES ${invoice.total.toFixed(2)}</strong></div>
-            <div>Payment: ${invoice.payment_method} ${mpesaCode ? '(Code: '+mpesaCode+')' : ''}</div>
+            ${paymentLine}
             <div>Customer: ${invoice.customer_name || 'Walk-in'} ${invoice.customer_phone ? '('+invoice.customer_phone+')' : ''}</div>
             <div>Cashier: ${cashierName}</div>
             <hr>
@@ -805,7 +891,7 @@
         const invoices = await apiCall('/api/invoices');
         let html = `<table class="table"><thead><tr><th>Invoice No</th><th>Customer</th><th>Total</th><th>Date</th><th>Cashier</th></tr></thead><tbody>`;
         invoices.forEach(inv=>{ html+=`<tr><td>${inv.invoice_no}</td><td>${escapeHtml(inv.customer_name||'Walk-in')}</td><td>KES ${inv.total.toFixed(2)}</td><td>${new Date(inv.sale_date).toLocaleString()}</td><td>${escapeHtml(inv.cashier_display_name || inv.cashier)}</td></tr>`; });
-        html+=`</tbody>`;
+        html+=`</tbody></table>`;
         document.getElementById('invoices-list').innerHTML = html || '<div class="alert alert-info">No invoices yet.</div>';
     }
 
@@ -814,7 +900,7 @@
         const report = await apiCall('/api/reports/sales');
         let html = `<table class="table"><thead><tr><th>Date</th><th>Transactions</th><th>Total Sales</th></tr></thead><tbody>`;
         report.forEach(r=>{ html+=`<tr><td>${r.date}</td><td>${r.transactions}</td><td>KES ${r.total.toFixed(2)}</td></tr>`; });
-        html+=`</tbody>`;
+        html+=`</tbody></table>`;
         document.getElementById('sales-report').innerHTML = html || '<div class="alert alert-info">No sales data.</div>';
     }
 
@@ -823,7 +909,7 @@
         const products = await apiCall('/api/products');
         let html = `<table class="table table-striped"><thead><tr><th>Name</th><th>Price</th><th>Stock</th><th>Min Stock</th><th>Unit</th><th>Supplier</th></tr></thead><tbody>`;
         products.forEach(p=>{ html+=`<tr><td>${escapeHtml(p.name)}</td><td>KES ${p.selling_price}</td><td>${p.quantity_in_stock}</td><td>${p.min_stock}</td><td>${escapeHtml(p.unit)}</td><td>${escapeHtml(p.supplier||'')}</td></tr>`; });
-        html+=`</tbody>`;
+        html+=`</tbody><tr>`;
         document.getElementById('inventory-list').innerHTML = html || '<div class="alert alert-info">No inventory data.</div>';
     }
 
@@ -843,7 +929,7 @@
                 }
                 html+=`<tr><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.contact_person||'')}</td><td>${escapeHtml(s.phone||'')}</td><td>${escapeHtml(s.email||'')}</td><td>${escapeHtml(s.address||'')}</td><td>${actionButtons}</td></tr>`;
             });
-            html+=`</tbody>`;
+            html+=`</tbody></table>`;
             document.getElementById('suppliers-list').innerHTML = html;
         } catch(e){ document.getElementById('suppliers-list').innerHTML = '<div class="alert alert-danger">Error loading suppliers</div>'; }
     }
@@ -875,7 +961,7 @@
     async function deleteSupplier(id) { if(confirm('Delete?')){ await apiCall(`/api/suppliers/${id}`, { method: 'DELETE' }); loadSuppliers(); } }
 
     // Users
-    async function loadUsers() { try{ const users = await apiCall('/api/users'); let html=`<table class="table"><thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Actions</th></tr></thead><tbody>`; if(users.length===0) html='<div class="alert alert-info">No users.</div>'; else users.forEach(u=>{ let deleteBtn = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>` : ''; html+=`<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.full_name)}</td><td>${escapeHtml(u.role)}</td><td>${deleteBtn}</td></tr>`; }); html+=`</tbody>`; document.getElementById('users-list').innerHTML=html; } catch(e){ document.getElementById('users-list').innerHTML='<div class="alert alert-danger">Error loading users</div>'; } }
+    async function loadUsers() { try{ const users = await apiCall('/api/users'); let html=`<table class="table"><thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Actions</th><tr></thead><tbody>`; if(users.length===0) html='<div class="alert alert-info">No users.</div>'; else users.forEach(u=>{ let deleteBtn = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id})">Delete</button>` : ''; html+=`<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.full_name)}</td><td>${escapeHtml(u.role)}</td><td>${deleteBtn}</td></tr>`; }); html+=`</tbody></table>`; document.getElementById('users-list').innerHTML=html; } catch(e){ document.getElementById('users-list').innerHTML='<div class="alert alert-danger">Error loading users</div>'; } }
 
     function showAddUserForm() {
         if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) {
@@ -913,30 +999,30 @@
     async function deleteUser(id) { if(confirm('Delete user?')){ await apiCall(`/api/users/${id}`, { method: 'DELETE' }); loadUsers(); } }
 
     // Returns
-    async function loadReturns() { let res=await apiCall('/api/returns'); let html='<table class="table"><thead><tr><th>Return Invoice</th><th>Original</th><th>Product</th><th>Qty</th><th>Refund</th><th>Reason</th><th>Date</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No returns yet.</div>'; else res.forEach(r=>{ html+=`<tr><td>${r.return_invoice}</td><td>${r.original_invoice}</td><td>${escapeHtml(r.product_name)}</td><td>${r.quantity}</td><td>KES ${r.refund_amount.toFixed(2)}</td><td>${escapeHtml(r.reason)}</td><td>${new Date(r.return_date).toLocaleString()}</td></tr>`; }); html+=`</tbody>`; document.getElementById('returns-list').innerHTML=html; }
+    async function loadReturns() { let res=await apiCall('/api/returns'); let html='<table class="table"><thead><tr><th>Return Invoice</th><th>Original</th><th>Product</th><th>Qty</th><th>Refund</th><th>Reason</th><th>Date</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No returns yet.</div>'; else res.forEach(r=>{ html+=`<tr><td>${r.return_invoice}</td><td>${r.original_invoice}</td><td>${escapeHtml(r.product_name)}</td><td>${r.quantity}</td><td>KES ${r.refund_amount.toFixed(2)}</td><td>${escapeHtml(r.reason)}</td><td>${new Date(r.return_date).toLocaleString()}</td></tr>`; }); html+=`</tbody></table>`; document.getElementById('returns-list').innerHTML=html; }
     function showReturnForm() { let inv=prompt('Original invoice no:'), pid=prompt('Product ID:'), pname=prompt('Product name:'), qty=parseInt(prompt('Quantity:')), refund=parseFloat(prompt('Refund amount:')), reason=prompt('Reason:'); if(inv&&pid&&pname&&qty) processReturn(inv,pid,pname,qty,refund,reason); }
     async function processReturn(original_invoice, product_id, product_name, quantity, refund_amount, reason) { await apiCall('/api/returns', { method: 'POST', body: JSON.stringify({ original_invoice, product_id, product_name, quantity, refund_amount, reason }) }); loadReturns(); }
 
     // Loyalty
-    async function loadLoyalty() { let res=await apiCall('/api/loyalty'); let html='<table class="table"><thead><tr><th>Name</th><th>Phone</th><th>Points</th><th>Spent</th><th>Tier</th><th>Actions</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No loyalty customers.</div>'; else res.forEach(c=>{ let deleteBtn = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? `<button class="btn btn-sm btn-danger" onclick="deleteLoyaltyCustomer('${c.phone}')">Delete</button>` : ''; html+=`<tr><td>${escapeHtml(c.name)}</td><td>${c.phone}</td><td>${c.points}</td><td>KES ${c.total_spent.toFixed(2)}</td><td>${c.tier}</td><td>${deleteBtn}</td></tr>`; }); html+=`</tbody>`; document.getElementById('loyalty-list').innerHTML=html; }
+    async function loadLoyalty() { let res=await apiCall('/api/loyalty'); let html='<table class="table"><thead><tr><th>Name</th><th>Phone</th><th>Points</th><th>Spent</th><th>Tier</th><th>Actions</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No loyalty customers.</div>'; else res.forEach(c=>{ let deleteBtn = (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) ? `<button class="btn btn-sm btn-danger" onclick="deleteLoyaltyCustomer('${c.phone}')">Delete</button>` : ''; html+=`<tr><td>${escapeHtml(c.name)}</td><td>${c.phone}</td><td>${c.points}</td><td>KES ${c.total_spent.toFixed(2)}</td><td>${c.tier}</td><td>${deleteBtn}</td></tr>`; }); html+=`</tbody><tr>`; document.getElementById('loyalty-list').innerHTML=html; }
     function showAddLoyaltyForm() { let name=prompt('Customer name:'), phone=prompt('Phone:'); if(name&&phone) addLoyaltyCustomer(name,phone); }
     async function addLoyaltyCustomer(name,phone) { await apiCall('/api/loyalty', { method: 'POST', body: JSON.stringify({ name, phone }) }); loadLoyalty(); }
     async function deleteLoyaltyCustomer(phone) { if(confirm('Remove?')){ await apiCall(`/api/loyalty/${phone}`, { method: 'DELETE' }); loadLoyalty(); } }
 
     // Expenses
-    async function loadExpenses() { let res=await apiCall('/api/expenses'); let html='<table class="table"><thead><tr><th>Category</th><th>Amount</th><th>Description</th><th>Date</th><th>By</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No expenses recorded.</div>'; else res.forEach(e=>{ html+=`<tr><td>${escapeHtml(e.category)}</td><td>KES ${e.amount.toFixed(2)}</td><td>${escapeHtml(e.description||'')}</td><td>${e.expense_date}</td><td>${escapeHtml(e.user||'')}</td></tr>`; }); html+=`</tbody>`; document.getElementById('expenses-list').innerHTML=html; }
+    async function loadExpenses() { let res=await apiCall('/api/expenses'); let html='<table class="table"><thead><tr><th>Category</th><th>Amount</th><th>Description</th><th>Date</th><th>By</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No expenses recorded.</div>'; else res.forEach(e=>{ html+=`<tr><td>${escapeHtml(e.category)}</td><td>KES ${e.amount.toFixed(2)}</td><td>${escapeHtml(e.description||'')}</td><td>${e.expense_date}</td><td>${escapeHtml(e.user||'')}</td><tr>`; }); html+=`</tbody></table>`; document.getElementById('expenses-list').innerHTML=html; }
     function showAddExpenseForm() { let cat=prompt('Category:'), amt=parseFloat(prompt('Amount:')); if(cat&&!isNaN(amt)) addExpense(cat,amt,prompt('Description:'),null); }
     async function addExpense(category, amount, description, expenseDate) { await apiCall('/api/expenses', { method: 'POST', body: JSON.stringify({ category, amount, description, expense_date: expenseDate || null }) }); loadExpenses(); }
 
     // Settings
-    async function loadSettings() { let res=await apiCall('/api/settings'); let html='<table class="table"><thead><tr><th>Key</th><th>Value</th><th>Action</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No settings yet.</div>'; else res.forEach(s=>{ html+=`<tr><td>${escapeHtml(s.key)}</td><td><input type="text" id="setting-${s.key}" value="${escapeHtml(s.value)}" class="form-control"></td><td><button class="btn btn-sm btn-primary" onclick="updateSetting('${s.key}')">Save</button></td></tr>`; }); html+=`</tbody>`; document.getElementById('settings-list').innerHTML=html; }
+    async function loadSettings() { let res=await apiCall('/api/settings'); let html='<table class="table"><thead><tr><th>Key</th><th>Value</th><th>Action</th></tr></thead><tbody>'; if(res.length===0) html='<div class="alert alert-info">No settings yet.</div>'; else res.forEach(s=>{ html+=`<tr><td>${escapeHtml(s.key)}</td><td><input type="text" id="setting-${s.key}" value="${escapeHtml(s.value)}" class="form-control"></td><td><button class="btn btn-sm btn-primary" onclick="updateSetting('${s.key}')">Save</button></td></tr>`; }); html+=`</tbody></tr>`; document.getElementById('settings-list').innerHTML=html; }
     async function updateSetting(key) { let newVal=document.getElementById(`setting-${key}`).value; await apiCall('/api/settings', { method: 'POST', body: JSON.stringify({ key, value: newVal }) }); alert('Updated'); loadSettings(); }
 
     // Stock Alerts
-    async function loadStockAlerts() { let products=await apiCall('/api/products'); let low=products.filter(p=>p.quantity_in_stock<=p.min_stock); let html='<table class="table"><thead><tr><th>Product</th><th>Stock</th><th>Min Stock</th><th>Unit</th></tr></thead><tbody>'; if(low.length===0) html='<div class="alert alert-success">No low stock items.</div>'; else low.forEach(p=>{ html+=`<tr><td>${escapeHtml(p.name)}</td><td class="text-danger">${p.quantity_in_stock}</td><td>${p.min_stock}</td><td>${p.unit}</td></tr>`; }); html+=`</tbody>`; document.getElementById('alerts-list').innerHTML=html; }
+    async function loadStockAlerts() { let products=await apiCall('/api/products'); let low=products.filter(p=>p.quantity_in_stock<=p.min_stock); let html='<table class="table"><thead><tr><th>Product</th><th>Stock</th><th>Min Stock</th><th>Unit</th></tr></thead><tbody>'; if(low.length===0) html='<div class="alert alert-success">No low stock items.</div>'; else low.forEach(p=>{ html+=`<tr><td>${escapeHtml(p.name)}</td><td class="text-danger">${p.quantity_in_stock}</td><td>${p.min_stock}</td><td>${p.unit}</td>`; }); html+=`</tbody></table>`; document.getElementById('alerts-list').innerHTML=html; }
 
     // Shifts
-    async function loadShifts() { let shifts=await apiCall('/api/shifts'); let html='<table class="table"><thead><tr><th>Cashier</th><th>Display Name</th><th>Start</th><th>End</th><th>Total Sales</th><th>Status</th></tr></thead><tbody>'; if(shifts.length===0) html='<div class="alert alert-info">No shifts yet.</div>'; else shifts.forEach(s=>{ html+=`<tr><td>${escapeHtml(s.cashier_name)}</td><td>${escapeHtml(s.shift_display_name || '-')}</td><td>${new Date(s.start_time).toLocaleString()}</td><td>${s.end_time?new Date(s.end_time).toLocaleString():'Active'}</td><td>KES ${s.total_sales.toFixed(2)}</td><td>${s.status}</td></tr>`; }); html+=`</tbody>`; document.getElementById('shift-list').innerHTML=html; }
+    async function loadShifts() { let shifts=await apiCall('/api/shifts'); let html='<table class="table"><thead><tr><th>Cashier</th><th>Display Name</th><th>Start</th><th>End</th><th>Total Sales</th><th>Status</th></table></thead><tbody>'; if(shifts.length===0) html='<div class="alert alert-info">No shifts yet.</div>'; else shifts.forEach(s=>{ html+=`<tr><td>${escapeHtml(s.cashier_name)}</td><td>${escapeHtml(s.shift_display_name || '-')}</td><td>${new Date(s.start_time).toLocaleString()}</td><td>${s.end_time?new Date(s.end_time).toLocaleString():'Active'}</td><td>KES ${s.total_sales.toFixed(2)}</td><td>${s.status}</td>`; }); html+=`</tbody></table>`; document.getElementById('shift-list').innerHTML=html; }
     async function startShiftWithName() {
         const displayName = prompt('Enter your name to appear on receipts for this shift:');
         if (!displayName) {
@@ -961,12 +1047,12 @@
     async function loadInvoicePanel() { let sum=await apiCall('/api/invoice_panel/summary'); document.getElementById('invoice-summary').innerHTML=`<div class="col-md-4"><div class="stat-card"><h5>Total Invoices</h5><div class="stat-number">${sum.total_invoices}</div></div></div><div class="col-md-4"><div class="stat-card"><h5>Quotations</h5><div class="stat-number">${sum.total_quotes}</div></div></div><div class="col-md-4"><div class="stat-card"><h5>Pending Deliveries</h5><div class="stat-number">${sum.pending_deliveries}</div></div></div>`; }
 
     // Receipt Records
-    async function loadReceiptRecords(search='') { let url='/api/receipt_records'+(search?`?search=${encodeURIComponent(search)}`:''); let records=await apiCall(url); let html='<table class="table"><thead><tr><th>Invoice No</th><th>Customer</th><th>Total</th><th>Payment</th><th>Date</th><th>Action</th></tr></thead><tbody>'; if(records.length===0) html='<div class="alert alert-info">No receipts found.</div>'; else records.forEach(r=>{ html+=`<tr><td>${r.invoice_no}</td><td>${escapeHtml(r.customer_name||'Walk-in')}</td><td>KES ${r.total.toFixed(2)}</td><td>${r.payment_method}</td><td>${new Date(r.sale_date).toLocaleString()}</td><td><button class="btn btn-sm btn-info" onclick="alert('Receipt details for '+r.invoice_no)">View</button></td></tr>`; }); html+=`</tbody>`; document.getElementById('receipt-records-list').innerHTML=html; }
+    async function loadReceiptRecords(search='') { let url='/api/receipt_records'+(search?`?search=${encodeURIComponent(search)}`:''); let records=await apiCall(url); let html='<table class="table"><thead><tr><th>Invoice No</th><th>Customer</th><th>Total</th><th>Payment</th><th>Date</th><th>Action</th></tr></thead><tbody>'; if(records.length===0) html='<div class="alert alert-info">No receipts found.</div>'; else records.forEach(r=>{ html+=`<tr><td>${r.invoice_no}</td><td>${escapeHtml(r.customer_name||'Walk-in')}</td><td>KES ${r.total.toFixed(2)}</td><td>${r.payment_method}</td><td>${new Date(r.sale_date).toLocaleString()}</td><td><button class="btn btn-sm btn-info" onclick="alert('Receipt details for '+r.invoice_no)">View</button></td>`; }); html+=`</tbody></table>`; document.getElementById('receipt-records-list').innerHTML=html; }
     function searchReceipts() { loadReceiptRecords(document.getElementById('receipt-search').value); }
 
     // Section Switcher
     async function showSection(section) {
-        const sections = ['dashboard','products','sales','invoices','reports','inventory','suppliers','users','returns','loyalty','expenses','settings','stock_alerts','shift_report','backup','invoice_panel','receipt_records','maintenance'];
+        const sections = ['dashboard','products','sales','invoices','reports','inventory','suppliers','users','returns','loyalty','expenses','settings','stock_alerts','shift_report','backup','invoice_panel','receipt_records','maintenance','audit_logs'];
         sections.forEach(s => { let el = document.getElementById(`${s}-section`); if(el) el.style.display = 'none'; });
         let active = document.getElementById(`${section}-section`);
         if(active) active.style.display = 'block';
@@ -993,12 +1079,13 @@
         if(section === 'invoice_panel') loadInvoicePanel();
         if(section === 'receipt_records') loadReceiptRecords();
         if(section === 'maintenance') refreshMaintenanceStatus();
+        if(section === 'audit_logs') loadAuditLogs();
     }
 </script>
 
-<!-- ========== ADDED FEATURES (offline, advanced reports, maintenance) ========== -->
+<!-- ========== ADDED FEATURES (offline, advanced reports, maintenance, audit logs) ========== -->
 <script>
-// Offline fallback, maintenance, advanced reports, etc.
+// Offline fallback, maintenance, advanced reports, audit logs etc.
 (function() {
     function switchToLocalAssets() {
         const bsCss = document.querySelector('link[href*="bootstrap.min.css"]');
@@ -1044,20 +1131,20 @@ async function loadProfitReport() {
         return;
     }
     let html = `<table class="table table-striped"><thead>
-                   <tr><th>Product</th><th>Qty Sold</th><th>Revenue (KES)</th><th>Cost (KES)</th><th>Profit (KES)</th><th>Margin</th></tr>
+                    <tr><th>Product</th><th>Qty Sold</th><th>Revenue (KES)</th><th>Cost (KES)</th><th>Profit (KES)</th><th>Margin</th></tr>
                 </thead><tbody>`;
     data.forEach(p => {
         const profitClass = p.profit >= 0 ? 'profit-positive' : 'profit-negative';
         html += `<tr>
-                     <td>${escapeHtml(p.name)}</td>
-                     <td>${p.quantity_sold}</td>
-                     <td>${p.total_revenue.toFixed(2)}</td>
-                     <td>${p.total_cost.toFixed(2)}</td>
-                     <td class="${profitClass}">${p.profit.toFixed(2)}</td>
-                     <td>${p.profit_margin}%</td>
-                   </tr>`;
+                    <td>${escapeHtml(p.name)}</td>
+                    <td>${p.quantity_sold}</td>
+                    <td>${p.total_revenue.toFixed(2)}</td>
+                    <td>${p.total_cost.toFixed(2)}</td>
+                    <td class="${profitClass}">${p.profit.toFixed(2)}</td>
+                    <td>${p.profit_margin}%</td>
+                </tr>`;
     });
-    html += `</tbody>`;
+    html += `</tbody><tr>`;
     document.getElementById('profit-report-container').innerHTML = html;
 }
 
@@ -1069,18 +1156,18 @@ async function loadFastMoving() {
         return;
     }
     let html = `<table class="table table-striped"><thead>
-                   <tr><th>Product</th><th>Unit</th><th>Total Sold</th><th>Days with Sales</th><th>Avg Daily Sales</th></tr>
+                    <tr><th>Product</th><th>Unit</th><th>Total Sold</th><th>Days with Sales</th><th>Avg Daily Sales</th></tr>
                 </thead><tbody>`;
     data.forEach(p => {
         html += `<tr>
-                     <td>${escapeHtml(p.name)}</td>
-                     <td>${escapeHtml(p.unit)}</td>
-                     <td>${p.total_quantity_sold}</td>
-                     <td>${p.days_with_sales}</td>
-                     <td><strong>${p.avg_daily_sales}</strong> / day</td>
-                   </tr>`;
+                    <td>${escapeHtml(p.name)}</td>
+                    <td>${escapeHtml(p.unit)}</td>
+                    <td>${p.total_quantity_sold}</td>
+                    <td>${p.days_with_sales}</td>
+                    <td><strong>${p.avg_daily_sales}</strong> / day</td>
+                </tr>`;
     });
-    html += `</tbody>`;
+    html += `</tbody></tr>`;
     document.getElementById('fast-report-container').innerHTML = html;
 }
 
@@ -1098,16 +1185,16 @@ async function loadDailyTop() {
         return;
     }
     let html = `<table class="table"><thead>
-                   <tr><th>Date</th><th>Top Product</th><th>Quantity Sold</th></tr>
+                    <tr><th>Date</th><th>Top Product</th><th>Quantity Sold</th></tr>
                 </thead><tbody>`;
     data.forEach(row => {
         html += `<tr>
-                     <td>${row.date}</td>
-                     <td>${escapeHtml(row.product_name)} (${escapeHtml(row.unit)})</td>
-                     <td>${row.quantity_sold}</td>
-                   </tr>`;
+                    <td>${row.date}</td>
+                    <td>${escapeHtml(row.product_name)} (${escapeHtml(row.unit)})</td>
+                    <td>${row.quantity_sold}</td>
+                </tr>`;
     });
-    html += `</tbody>`;
+    html += `</tbody></table>`;
     document.getElementById('daily-report-container').innerHTML = html;
 }
 
@@ -1128,6 +1215,42 @@ function initReportTabs() {
         };
         tab.addEventListener('click', listener);
         tab._listener = listener;
+    });
+}
+
+// Audit Logs functions
+async function loadAuditLogs() {
+    try {
+        const logs = await apiCall('/api/audit_logs');
+        if (!logs.length) {
+            document.getElementById('audit-logs-list').innerHTML = '<div class="alert alert-info">No audit logs found.</div>';
+            return;
+        }
+        let html = `<table class="table table-striped">
+            <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th><th>IP Address</th></tr></thead>
+            <tbody>`;
+        logs.forEach(log => {
+            html += `<tr>
+                        <td>${new Date(log.created_at).toLocaleString()}</td>
+                        <td>${escapeHtml(log.user)}</td>
+                        <td>${escapeHtml(log.action)}</td>
+                        <td>${escapeHtml(log.details)}</td>
+                        <td>${escapeHtml(log.ip_address || '-')}</td>
+                    </tr>`;
+        });
+        html += `</tbody></table>`;
+        document.getElementById('audit-logs-list').innerHTML = html;
+    } catch(e) {
+        document.getElementById('audit-logs-list').innerHTML = '<div class="alert alert-danger">Error loading audit logs</div>';
+    }
+}
+
+function filterAuditLogs() {
+    const filter = document.getElementById('audit-filter').value.toLowerCase();
+    const rows = document.querySelectorAll('#audit-logs-list tbody tr');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(filter) ? '' : 'none';
     });
 }
 </script>
@@ -1329,11 +1452,15 @@ function initReportTabs() {
         if (cart.length === 0) return alert('Cart empty');
 
         const paymentMethod = document.getElementById('payment-method').value;
-        let mpesaCode = null;
+        let transactionCode = null;
         if (paymentMethod === 'MPESA') {
-            mpesaCode = prompt('Enter M-Pesa transaction code (STK Push confirmation):');
-            if (!mpesaCode) return alert('Transaction code required for M-Pesa payment');
+            transactionCode = prompt('Enter M-Pesa transaction code (STK Push confirmation):');
+            if (!transactionCode) return alert('Transaction code required for M-Pesa payment');
+        } else if (paymentMethod === 'Pesa Pal') {
+            transactionCode = prompt('Enter Pesa Pal transaction reference:');
+            if (!transactionCode) return alert('Reference code required for Pesa Pal payment');
         }
+
         const subtotal = parseFloat(document.getElementById('cart-subtotal').innerText);
         const discount = parseFloat(document.getElementById('discount').value) || 0;
         const taxable = subtotal - discount;
@@ -1357,7 +1484,7 @@ function initReportTabs() {
             document.getElementById('customer-name').value = '';
             document.getElementById('customer-phone').value = '';
             document.getElementById('discount').value = 0;
-            document.getElementById('payment-method').value = 'Cash';
+            selectPaymentMethod('Cash');
             updateCartTotal();
             updatePendingBadge();
             return;
@@ -1374,7 +1501,7 @@ function initReportTabs() {
                 document.getElementById('customer-name').value = '';
                 document.getElementById('customer-phone').value = '';
                 document.getElementById('discount').value = 0;
-                document.getElementById('payment-method').value = 'Cash';
+                selectPaymentMethod('Cash');
                 updateCartTotal();
                 updatePendingBadge();
             } else {

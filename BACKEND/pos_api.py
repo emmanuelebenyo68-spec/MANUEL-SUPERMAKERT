@@ -110,7 +110,6 @@ class Invoice(db.Model):
     payment_method = db.Column(db.String(50))
     cashier_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     sale_date = db.Column(db.DateTime, default=datetime.utcnow)
-    # NEW: store the cashier display name from shift at sale time
     cashier_display_name = db.Column(db.String(100), nullable=True)
 
     cashier = db.relationship('User', backref='invoices')
@@ -273,7 +272,6 @@ class Shift(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
     total_sales = db.Column(db.Numeric(10,2), default=0)
     status = db.Column(db.String(20), default='active')
-    # NEW: store the cashier's entered name for this shift
     shift_display_name = db.Column(db.String(100), nullable=True)
 
     user = db.relationship('User')
@@ -288,6 +286,30 @@ class Shift(db.Model):
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'total_sales': float(self.total_sales),
             'status': self.status
+        }
+
+# ---------------------------
+# NEW: AuditLog Model
+# ---------------------------
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    action = db.Column(db.String(100), nullable=False)
+    details = db.Column(db.Text)
+    ip_address = db.Column(db.String(45))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user': self.user.full_name if self.user else 'System',
+            'action': self.action,
+            'details': self.details,
+            'ip_address': self.ip_address,
+            'created_at': self.created_at.isoformat()
         }
 
 # ---------------------------
@@ -322,6 +344,16 @@ def role_required(allowed_roles):
     return decorator
 
 # ---------------------------
+# Audit Logging Helper
+# ---------------------------
+def log_action(user_id, action, details, ip=None):
+    if ip is None and request:
+        ip = request.remote_addr
+    log = AuditLog(user_id=user_id, action=action, details=details, ip_address=ip)
+    db.session.add(log)
+    db.session.commit()
+
+# ---------------------------
 # API Endpoints
 # ---------------------------
 @app.route('/api/health', methods=['GET'])
@@ -341,6 +373,8 @@ def register():
     user.set_password(data['password'])
     db.session.add(user)
     db.session.commit()
+    # Log user creation
+    log_action(user.id, 'user_create', f"User {user.username} ({user.full_name}) created")
     return jsonify(user.to_dict()), 201
 
 @app.route('/api/users/login', methods=['POST'])
@@ -354,6 +388,8 @@ def login():
         app.config['SECRET_KEY'],
         algorithm='HS256'
     )
+    # Log login
+    log_action(user.id, 'login', f"User {user.username} logged in from IP {request.remote_addr}")
     return jsonify({'token': token, 'user': user.to_dict()})
 
 @app.route('/api/users', methods=['GET'])
@@ -363,7 +399,6 @@ def get_users():
     users = User.query.all()
     return jsonify([u.to_dict() for u in users])
 
-# Only admin can delete users
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 @token_required
 @role_required(['admin'])
@@ -381,7 +416,6 @@ def get_products():
     products = Product.query.all()
     return jsonify([p.to_dict() for p in products])
 
-# ==================== MODIFIED: Allow admin AND manager to manage products ====================
 @app.route('/api/products', methods=['POST'])
 @token_required
 @role_required(['admin', 'manager'])
@@ -401,6 +435,7 @@ def create_product():
     )
     db.session.add(product)
     db.session.commit()
+    log_action(g.current_user.id, 'product_create', f"Product {product.name} (ID {product.id}) selling price {product.selling_price}")
     return jsonify(product.to_dict()), 201
 
 @app.route('/api/products/<int:product_id>', methods=['PUT'])
@@ -419,6 +454,7 @@ def update_product(product_id):
     if 'category_id' in data:
         product.category_id = data['category_id']
     db.session.commit()
+    log_action(g.current_user.id, 'product_update', f"Product ID {product_id} updated")
     return jsonify(product.to_dict())
 
 @app.route('/api/products/<int:product_id>', methods=['DELETE'])
@@ -426,6 +462,7 @@ def update_product(product_id):
 @role_required(['admin', 'manager'])
 def delete_product(product_id):
     product = Product.query.get_or_404(product_id)
+    log_action(g.current_user.id, 'product_delete', f"Product ID {product_id} {product.name}")
     db.session.delete(product)
     db.session.commit()
     return jsonify({'message': 'Product deleted'}), 200
@@ -439,7 +476,6 @@ def create_invoice():
     seq = int(last_inv.invoice_no.split('-')[-1]) + 1 if last_inv else 1
     invoice_no = f"INV-{today}-{seq:04d}"
 
-    # Get the cashier's active shift to capture display name for receipt
     active_shift = Shift.query.filter_by(user_id=g.current_user.id, status='active').first()
     cashier_display = active_shift.shift_display_name if active_shift and active_shift.shift_display_name else g.current_user.full_name
 
@@ -484,6 +520,7 @@ def create_invoice():
         db.session.add(item)
 
     db.session.commit()
+    log_action(g.current_user.id, 'sale', f"Invoice {invoice_no} total {invoice.total}")
     return jsonify(invoice.to_dict()), 201
 
 @app.route('/api/invoices', methods=['GET'])
@@ -629,6 +666,7 @@ def create_return():
         db.session.add(movement)
     db.session.add(ret)
     db.session.commit()
+    log_action(g.current_user.id, 'return', f"Return {return_inv} for invoice {data['original_invoice']}, product {data['product_name']}, qty {data['quantity']}")
     return jsonify(ret.to_dict()), 201
 
 # ---------- Loyalty (only admin delete) ----------
@@ -723,7 +761,6 @@ def start_shift():
         return jsonify({'error': 'You already have an active shift'}), 400
     data = request.json or {}
     display_name = data.get('display_name', '').strip()
-    # If no display name provided, fallback to user's full name
     if not display_name:
         display_name = g.current_user.full_name
     shift = Shift(
@@ -733,6 +770,7 @@ def start_shift():
     )
     db.session.add(shift)
     db.session.commit()
+    log_action(g.current_user.id, 'shift_start', f"Shift ID {shift.id} display name '{shift.shift_display_name}'")
     return jsonify(shift.to_dict()), 201
 
 @app.route('/api/shifts/end', methods=['POST'])
@@ -750,6 +788,7 @@ def end_shift():
     ).scalar() or 0
     shift.total_sales = total
     db.session.commit()
+    log_action(g.current_user.id, 'shift_end', f"Shift ID {shift.id} total sales {total}")
     return jsonify(shift.to_dict())
 
 # ---------- Backup ----------
@@ -809,14 +848,12 @@ def receipt_records():
 @app.route('/reset-credentials')
 def reset_credentials():
     from werkzeug.security import generate_password_hash
-    # Try to find existing admin user
     admin = User.query.filter_by(username='admin').first()
     if admin:
         admin.username = 'manuel'
         admin.password_hash = generate_password_hash('manuel')
         db.session.commit()
         return "Updated existing admin to manuel/manuel"
-    # Otherwise, create a new user
     manuel = User.query.filter_by(username='manuel').first()
     if manuel:
         manuel.password_hash = generate_password_hash('manuel')
@@ -843,13 +880,11 @@ def add_missing_columns():
     """Add shift_display_name to shifts and cashier_display_name to invoices if not exist."""
     with app.app_context():
         inspector = db.inspect(db.engine)
-        # Add column to Shift if missing
         if 'shifts' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('shifts')]
             if 'shift_display_name' not in columns:
                 db.session.execute(text('ALTER TABLE shifts ADD COLUMN shift_display_name VARCHAR(100)'))
                 db.session.commit()
-        # Add column to Invoice if missing
         if 'invoices' in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('invoices')]
             if 'cashier_display_name' not in columns:
@@ -877,7 +912,6 @@ def seed_data():
             db.session.commit()
 
         if Product.query.count() == 0:
-            # Get categories for reference
             cat_beverages = Category.query.filter_by(name='Beverages').first()
             cat_snacks = Category.query.filter_by(name='Snacks').first()
             cat_dairy = Category.query.filter_by(name='Dairy').first()
@@ -885,7 +919,6 @@ def seed_data():
             cat_veg = Category.query.filter_by(name='Vegetables').first()
             cat_household = Category.query.filter_by(name='Household').first()
 
-            # 24 products (more than 20)
             sample_products = [
                 # Beverages
                 {'name': 'Coca Cola 500ml', 'selling_price': 120, 'quantity': 50, 'unit': 'bottle', 'barcode': '123456789012', 'cat': cat_beverages},
@@ -951,10 +984,10 @@ with app.app_context():
     add_missing_columns()
     seed_data()
 
-# ========== ADDED FEATURES (no changes above) ==========
+# ========== ADDED FEATURES ==========
 
 # ---------------------------
-# ADDED: Offline asset serving (local Bootstrap/FontAwesome)
+# Offline asset serving (local Bootstrap/FontAwesome)
 # ---------------------------
 @app.route('/static/bootstrap/css/bootstrap.min.css')
 def bootstrap_css():
@@ -973,7 +1006,7 @@ def fontawesome_webfonts(filename):
     return send_from_directory('static/fontawesome/webfonts', filename)
 
 # ---------------------------
-# ADDED: Maintenance endpoint for non-technical staff
+# Maintenance endpoint for non-technical staff
 # ---------------------------
 @app.route('/api/maintenance/status', methods=['GET'])
 @token_required
@@ -990,7 +1023,7 @@ def maintenance_status():
     })
 
 # ---------------------------
-# ADDED: Advanced Analytics Endpoints (Profit, Fast-moving, Daily Top)
+# Advanced Analytics Endpoints (Profit, Fast-moving, Daily Top)
 # ---------------------------
 @app.route('/api/reports/profit-analysis', methods=['GET'])
 @token_required
@@ -1042,7 +1075,6 @@ def fast_moving_products():
     """Products with highest average daily sales (last 30 days)."""
     days = request.args.get('days', default=30, type=int)
     cutoff = datetime.utcnow() - timedelta(days=days)
-    # Get total quantity sold per product in the period
     subq = db.session.query(
         InvoiceItem.product_id,
         func.sum(InvoiceItem.quantity).label('total_qty')
@@ -1073,9 +1105,8 @@ def fast_moving_products():
             'days_with_sales': days_with_sales,
             'avg_daily_sales': round(avg_daily, 2)
         })
-    # Sort by avg daily sales descending
     report.sort(key=lambda x: x['avg_daily_sales'], reverse=True)
-    return jsonify(report[:20])  # top 20
+    return jsonify(report[:20])
 
 @app.route('/api/reports/daily-top-products', methods=['GET'])
 @token_required
@@ -1084,7 +1115,6 @@ def daily_top_products():
     """For each day, the product(s) with highest quantity sold."""
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
-    # Subquery: daily sales per product
     daily_sales = db.session.query(
         func.date(Invoice.sale_date).label('sale_date'),
         InvoiceItem.product_id,
@@ -1099,7 +1129,6 @@ def daily_top_products():
 
     daily_sales = daily_sales.subquery()
 
-    # Rank products per day by quantity
     ranked = db.session.query(
         daily_sales.c.sale_date,
         daily_sales.c.product_id,
@@ -1126,7 +1155,7 @@ def daily_top_products():
     return jsonify(result)
 
 # ---------------------------
-# OFFLINE SYNC ENDPOINTS (new)
+# OFFLINE SYNC ENDPOINTS
 # ---------------------------
 @app.route('/api/offline/data', methods=['GET'])
 @token_required
@@ -1202,11 +1231,23 @@ def sync_sales():
                 )
                 db.session.add(item)
             db.session.commit()
+            log_action(g.current_user.id, 'sale', f"Invoice {invoice_no} total {invoice.total} (synced offline)")
             results.append({'id': tx.get('id'), 'status': 'success', 'invoice': invoice.to_dict()})
         except Exception as e:
             db.session.rollback()
             results.append({'id': tx.get('id'), 'status': 'error', 'message': str(e)})
     return jsonify({'results': results})
+
+# ---------------------------
+# NEW: Audit Logs Endpoint
+# ---------------------------
+@app.route('/api/audit_logs', methods=['GET'])
+@token_required
+@role_required(['admin', 'manager'])
+def get_audit_logs():
+    limit = request.args.get('limit', 200, type=int)
+    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    return jsonify([log.to_dict() for log in logs])
 
 # ---------------------------
 # Run app (for local development only)
